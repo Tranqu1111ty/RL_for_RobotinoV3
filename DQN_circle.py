@@ -31,7 +31,7 @@ class RobotEnv(gym.Env):
         self.target_position_index = 0
         self.target_position = np.array([0.15, 0.15], dtype=np.float32) + self.circle_points[self.target_position_index]
         self.type_surface = 2
-        self.time = 0.2
+        self.time = 0.5
 
         self.robot_x = []
         self.robot_y = []
@@ -55,7 +55,7 @@ class RobotEnv(gym.Env):
     def step(self, action_index):
         speed_combination = self.all_speed_combinations[action_index]
         velocities = list(speed_combination)
-
+        print("скорости робота:", velocities)
         delta_x, delta_y, angle, speed_motor_1, speed_motor_2, speed_motor_3, current_first_motor_on_grey, \
         current_second_motor_on_grey, current_third_motor_on_grey, slippage_first_grey, slippage_second_grey, \
         slippage_third_grey = NeurophysicalModel(velocities[0], velocities[1], velocities[2], self.type_surface,
@@ -150,10 +150,10 @@ def optimize_model(policy_net, target_net, memory, optimizer):
     transitions = random.sample(memory, batch_size)
     state_batch, action_batch, reward_batch, next_state_batch, done_batch = zip(*transitions)
 
-    state_batch = torch.tensor([state_to_one_hot(s, env.observation_space.n) for s in state_batch], dtype=torch.float32)
+    state_batch = torch.tensor([state_to_one_hot(s, env.observation_space.shape[0]) for s in state_batch], dtype=torch.float32)
     action_batch = torch.tensor(action_batch, dtype=torch.int64)
     reward_batch = torch.tensor(reward_batch, dtype=torch.float32)
-    next_state_batch = torch.tensor([state_to_one_hot(s, env.observation_space.n) for s in next_state_batch], dtype=torch.float32)
+    next_state_batch = torch.tensor([state_to_one_hot(s, env.observation_space.shape[0]) for s in next_state_batch], dtype=torch.float32)
     done_batch = torch.tensor(done_batch, dtype=torch.float32)
 
     q_values = policy_net(state_batch).gather(1, action_batch.view(-1, 1)).squeeze()
@@ -184,10 +184,10 @@ target_net = DQN(env.observation_space.shape[0], env.action_space.n)
 target_net.load_state_dict(policy_net.state_dict())
 optimizer = optim.RMSprop(policy_net.parameters())
 
-memory = deque(maxlen=50000)
+memory = deque(maxlen=500)
 steps_done = 0
 
-for episode in range(1, 50000):
+for episode in range(1, 25000):
     state = env.reset()
     total_reward = 0
 
@@ -210,6 +210,9 @@ for episode in range(1, 50000):
 
         optimize_model(policy_net, target_net, memory, optimizer)
         state = next_state
+        print("эпизод: ", episode)
+        print("суммарная награда в текущем эпизоде: ", total_reward)
+        print("состояние: ", state)
 
         if done:
             break
