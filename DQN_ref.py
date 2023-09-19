@@ -10,18 +10,6 @@ from collections import deque
 from NM_w_angle_ref import NeurophysicalModel
 
 
-# def calculate_reward(state, next_state, target_position):
-#     distance_to_target = np.linalg.norm(next_state[:2] - target_position)
-#     current_distance = np.linalg.norm(state[:2] - target_position)
-#
-#     if distance_to_target < current_distance:
-#         reward = 1
-#     else:
-#         reward = -1
-#
-#     return reward
-
-
 class RobotEnv(gym.Env):
     def __init__(self):
         self.grid_size = 0.05

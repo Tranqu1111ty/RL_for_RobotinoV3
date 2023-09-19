@@ -4,7 +4,6 @@ from keras import models
 
 
 def NeurophysicalModel(velocity_1, velocity_2, velocity_3, type_surface, time, current_angle):
-
     current_angle = current_angle
     time = time
     input_data = np.array([velocity_1 * 30 / math.pi, velocity_2 * 30 / math.pi, velocity_3 * 30 / math.pi,
@@ -13,7 +12,7 @@ def NeurophysicalModel(velocity_1, velocity_2, velocity_3, type_surface, time, c
     input_data = input_data.reshape(1, -1)
 
     "normalization"
-    mean = np.array([-0.04328374, -0.04481319,  0.08801374, 1.99927798])
+    mean = np.array([-0.04328374, -0.04481319, 0.08801374, 1.99927798])
     std = np.array([270.13250383, 270.11489776, 270.03726287, 0.81634887])
     input_data -= mean
     input_data /= std
@@ -21,7 +20,7 @@ def NeurophysicalModel(velocity_1, velocity_2, velocity_3, type_surface, time, c
     mean_velocity_current_green = np.array([-3.70464561, 1.81659984, 2.1912304])
     std_velocity_current_green = np.array([204.12715797, 194.17465242, 200.22339528])
 
-    mean_velocity_current_grey = np.array([-3.15935342,  1.9343096, 1.65945736])
+    mean_velocity_current_grey = np.array([-3.15935342, 1.9343096, 1.65945736])
     std_velocity_current_grey = np.array([196.32761694, 199.25209513, 191.52317769])
 
     mean_for_slippage_green = np.array([0.73784104, 0.78476592, 0.73912061])
@@ -113,9 +112,9 @@ def NeurophysicalModel(velocity_1, velocity_2, velocity_3, type_surface, time, c
                        [2 * math.cos(math.pi / 3), 2 * math.cos(math.pi), 2 * math.cos(math.pi / 3)],
                        [1 / 0.13, 1 / 0.13, 1 / 0.13]])
 
-    m1 = np.dot(1/3, matrix)
+    m1 = np.dot(1 / 3, matrix)
 
-    mat = np.matmul(m1, real_velocity[0]/16)
+    mat = np.matmul(m1, real_velocity[0] / 16)
 
     vxvywz = np.dot(r, mat)
 
@@ -131,5 +130,4 @@ def NeurophysicalModel(velocity_1, velocity_2, velocity_3, type_surface, time, c
                                    -vxvywz[0] * time * math.cos(angle + current_angle)
                                    + vxvywz[1] * time * math.sin(angle + current_angle)])
 
-    return global_coord_delta[0],  global_coord_delta[1], angle
-
+    return global_coord_delta[0], global_coord_delta[1], angle, speed_motor_1[0], speed_motor_2[0], speed_motor_3[0], current_first_motor_on_grey[0], current_second_motor_on_grey[0], current_third_motor_on_grey[0], slippage_first_grey[0], slippage_second_grey[0], slippage_third_grey[0]
