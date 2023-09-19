@@ -9,7 +9,6 @@ import random
 from collections import deque
 from NM_w_angle_ref import NeurophysicalModel
 
-
 class RobotEnv(gym.Env):
     def __init__(self):
         self.grid_size = 0.01
@@ -22,7 +21,7 @@ class RobotEnv(gym.Env):
         self.all_speed_combinations = [(v1, v2, v3) for v1 in self.possible_speeds for v2 in self.possible_speeds for v3 in
                                   self.possible_speeds]
 
-        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(12,), dtype=np.float32)
+        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(11,), dtype=np.float32)
         self.action_space = spaces.Discrete(len(self.all_speed_combinations))
 
         self.current_position = np.array([0.15, 0.15, 0], dtype=np.float32)
@@ -32,6 +31,9 @@ class RobotEnv(gym.Env):
         self.target_position = np.array([0.15, 0.15], dtype=np.float32) + self.circle_points[self.target_position_index]
         self.type_surface = 2
         self.time = 0.5
+
+        self.successful_episodes = 0
+        self.max_steps = 4
 
         self.robot_x = []
         self.robot_y = []
@@ -50,12 +52,14 @@ class RobotEnv(gym.Env):
 
     def reset(self):
         self.current_position = np.array([0.15, 0.15, 0], dtype=np.float32)
+        self.step_count = 0
         return self.get_state_index(self.current_position[:2])
 
     def step(self, action_index):
         speed_combination = self.all_speed_combinations[action_index]
         velocities = list(speed_combination)
         print("скорости робота:", velocities)
+        print("количество успешных эпизодов: ", self.successful_episodes)
         delta_x, delta_y, angle, speed_motor_1, speed_motor_2, speed_motor_3, current_first_motor_on_grey, \
         current_second_motor_on_grey, current_third_motor_on_grey, slippage_first_grey, slippage_second_grey, \
         slippage_third_grey = NeurophysicalModel(velocities[0], velocities[1], velocities[2], self.type_surface,
@@ -70,11 +74,19 @@ class RobotEnv(gym.Env):
 
         done = False
 
-        if distance_to_target < 0.01:
+        self.step_count += 1
+
+        if self.step_count >= self.max_steps:
+            done = True
+            reward = -10
+
+        if distance_to_target < 0.03:
+            self.successful_episodes += 1
             self.target_reached_count += 1
             if self.target_reached_count >= self.max_target_reached_count:
                 self.target_position_index = (self.target_position_index + 1) % len(self.circle_points)
                 self.target_reached_count = 0
+
             self.target_position = np.array([0.15, 0.15], dtype=np.float32) + self.circle_points[self.target_position_index]
             done = True
             reward = 10
@@ -150,10 +162,10 @@ def optimize_model(policy_net, target_net, memory, optimizer):
     transitions = random.sample(memory, batch_size)
     state_batch, action_batch, reward_batch, next_state_batch, done_batch = zip(*transitions)
 
-    state_batch = torch.tensor([state_to_one_hot(s, env.observation_space.shape[0]) for s in state_batch], dtype=torch.float32)
+    state_batch = torch.tensor([state_to_one_hot(s) for s in state_batch], dtype=torch.float32)
     action_batch = torch.tensor(action_batch, dtype=torch.int64)
     reward_batch = torch.tensor(reward_batch, dtype=torch.float32)
-    next_state_batch = torch.tensor([state_to_one_hot(s, env.observation_space.shape[0]) for s in next_state_batch], dtype=torch.float32)
+    next_state_batch = torch.tensor([state_to_one_hot(s) for s in next_state_batch], dtype=torch.float32)
     done_batch = torch.tensor(done_batch, dtype=torch.float32)
 
     q_values = policy_net(state_batch).gather(1, action_batch.view(-1, 1)).squeeze()
@@ -165,15 +177,23 @@ def optimize_model(policy_net, target_net, memory, optimizer):
     loss.backward()
     optimizer.step()
 
-def state_to_one_hot(state, num_states):
+def state_to_one_hot(state):
+    shape = env.observation_space.shape
+
+    state_scaled = (state - env.observation_space.low) / (env.observation_space.high - env.observation_space.low)
+
+    state_indices = np.digitize(state_scaled, bins=np.linspace(0, 1, num=shape[0])) - 1
+
+    num_states = np.prod(shape)
     one_hot = np.zeros(num_states)
-    one_hot[state] = 1
+    one_hot[state_indices] = 1
+
     return one_hot
 
-batch_size = 64
+batch_size = 5
 gamma = 0.99
-eps_start = 1.0
-eps_end = 0.01
+eps_start = 0.3
+eps_end = 0.05
 eps_decay = 10000
 target_update = 10
 
@@ -200,7 +220,7 @@ for episode in range(1, 25000):
             action = random.randint(0, env.action_space.n - 1)
         else:
             with torch.no_grad():
-                one_hot_state = state_to_one_hot(state, env.observation_space.shape[0])
+                one_hot_state = state_to_one_hot(state)
                 state_tensor = torch.tensor([one_hot_state], dtype=torch.float32)
                 action = policy_net(state_tensor).max(dim=1)[1].item()
 
@@ -225,4 +245,3 @@ for episode in range(1, 25000):
 torch.save(policy_net.state_dict(), "DQN.pth")
 
 env.close()
-
