@@ -33,7 +33,7 @@ class RobotEnv(gym.Env):
         self.time = 0.5
 
         self.successful_episodes = 0
-        self.max_steps = 4
+        self.max_steps = 5
 
         self.robot_x = []
         self.robot_y = []
@@ -80,7 +80,7 @@ class RobotEnv(gym.Env):
             done = True
             reward = -10
 
-        if distance_to_target < 0.03:
+        if distance_to_target < 0.02:
             self.successful_episodes += 1
             self.target_reached_count += 1
             if self.target_reached_count >= self.max_target_reached_count:
