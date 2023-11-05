@@ -170,6 +170,7 @@ def state_to_one_hot(state, num_states):
     one_hot[state] = 1
     return one_hot
 
+
 batch_size = 64
 gamma = 0.99
 eps_start = 1.0
@@ -184,10 +185,10 @@ target_net = DQN(env.observation_space.shape[0], env.action_space.n)
 target_net.load_state_dict(policy_net.state_dict())
 optimizer = optim.RMSprop(policy_net.parameters())
 
-memory = deque(maxlen=50000)
+memory = deque(maxlen=10)
 steps_done = 0
 
-for episode in range(1, 50000):
+for episode in range(1, 50):
     state = env.reset()
     total_reward = 0
 

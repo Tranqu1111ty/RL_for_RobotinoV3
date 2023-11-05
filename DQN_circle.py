@@ -39,7 +39,7 @@ class RobotEnv(gym.Env):
         self.robot_y = []
 
         self.target_reached_count = 0
-        self.max_target_reached_count = 3
+        self.max_target_reached_count = 100
 
     def generate_points_on_circle(self, radius, num_points):
         points = []
@@ -127,8 +127,14 @@ class RobotEnv(gym.Env):
         self.ax.set_xlim(0, 0.3)
         self.ax.set_ylim(0, 0.3)
 
+        self.ax.grid(True)
+
+        self.ax.set_xlabel('X coordinate (metres)')
+        self.ax.set_ylabel('Y coordinate (metres)')
+
         if len(self.robot_x) > 0:
-            for i in range(len(self.robot_x) - 1):
+            start_index = max(0, len(self.robot_x) - 200)
+            for i in range(start_index, len(self.robot_x) - 1):
                 distance = np.linalg.norm(
                     np.array([self.robot_x[i], self.robot_y[i]]) - np.array([self.robot_x[i + 1], self.robot_y[i + 1]]))
                 if distance <= 0.1:
@@ -136,11 +142,21 @@ class RobotEnv(gym.Env):
 
         if len(self.robot_x) > 0:
             self.ax.plot(self.robot_x[-1], self.robot_y[-1], 'gx')
+            self.ax.text(self.robot_x[-1], self.robot_y[-1], 'Current location', fontsize=8, color='r')
 
         self.ax.plot(self.target_position[0], self.target_position[1], 'ro')
+        self.ax.plot(0.15, 0.15, 'go')
         self.ax.plot(1, 1, 'go')
 
+        self.ax.text(self.target_position[0], self.target_position[1], 'Target', fontsize=12, color='r')
+
+        self.ax.text(0.15, 0.15, 'Start', fontsize=12, color='g')
+
         plt.draw()
+
+        if len(self.robot_x) % 1000 == 0:
+            plt.savefig(f"step_{self.step_count}.png")
+
         plt.pause(1)
 
 class DQN(nn.Module):
@@ -204,7 +220,7 @@ target_net = DQN(env.observation_space.shape[0], env.action_space.n)
 target_net.load_state_dict(policy_net.state_dict())
 optimizer = optim.RMSprop(policy_net.parameters())
 
-memory = deque(maxlen=500)
+memory = deque(maxlen=250)
 steps_done = 0
 
 for episode in range(1, 25000):
