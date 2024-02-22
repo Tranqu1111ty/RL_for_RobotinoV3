@@ -19,9 +19,8 @@ class RobotEnv(gym.Env):
         self.possible_speeds = [-40, -34.641, -28.2843, -25.7115, -20, -16.9047, -10.3528, -6.94593, 0,
                                 40, 34.641, 28.2843, 25.7115, 20, 16.9047, 10.3528, 6.94593]
 
-        self.all_speed_combinations = [(v1, v2, v3) for v1 in self.possible_speeds for v2 in self.possible_speeds for v3
-                                       in
-                                       self.possible_speeds]
+        self.all_speed_combinations = [(v1, v2, v3) for v1 in self.possible_speeds for v2 in self.possible_speeds for v3 in
+                                  self.possible_speeds]
 
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(11,), dtype=np.float32)
         self.action_space = spaces.Discrete(len(self.all_speed_combinations))
@@ -41,7 +40,7 @@ class RobotEnv(gym.Env):
         self.robot_y = []
 
         self.target_reached_count = 0
-        self.max_target_reached_count = 2
+        self.max_target_reached_count = 1
 
     def generate_points_on_circle(self, radius, num_points):
         points = []
@@ -51,6 +50,10 @@ class RobotEnv(gym.Env):
             y = radius * np.sin(angle)
             points.append((x, y))
         return points
+
+    def set_target_point_index(self, point_index):
+        self.target_position_index = point_index
+        self.target_position = np.array([0.15, 0.15], dtype=np.float32) + self.circle_points[self.target_position_index]
 
     def reset(self):
         self.current_position = np.array([0.15, 0.15, 0], dtype=np.float32)
@@ -65,7 +68,7 @@ class RobotEnv(gym.Env):
         delta_x, delta_y, angle, speed_motor_1, speed_motor_2, speed_motor_3, current_first_motor_on_grey, \
         current_second_motor_on_grey, current_third_motor_on_grey, slippage_first_grey, slippage_second_grey, \
         slippage_third_grey = NeurophysicalModel(velocities[0], velocities[1], velocities[2], self.type_surface,
-                                                 self.time, self.current_position[2])
+                                                     self.time, self.current_position[2])
 
         self.current_position[0] += delta_x
         self.current_position[1] += delta_y
@@ -89,8 +92,7 @@ class RobotEnv(gym.Env):
                 self.target_position_index = (self.target_position_index + 1) % len(self.circle_points)
                 self.target_reached_count = 0
 
-            self.target_position = np.array([0.15, 0.15], dtype=np.float32) + self.circle_points[
-                self.target_position_index]
+            self.target_position = np.array([0.15, 0.15], dtype=np.float32) + self.circle_points[self.target_position_index]
             done = True
             reward = 10
 
@@ -100,6 +102,17 @@ class RobotEnv(gym.Env):
 
         self.robot_x.append(self.current_position[0])
         self.robot_y.append(self.current_position[1])
+
+        print(*self.circle_points[self.target_position_index],
+            speed_motor_1,
+            speed_motor_2,
+            speed_motor_3,
+            current_first_motor_on_grey,
+            current_second_motor_on_grey,
+            current_third_motor_on_grey,
+            slippage_first_grey,
+            slippage_second_grey,
+            slippage_third_grey)
 
         state = np.array([
             *self.circle_points[self.target_position_index],
@@ -162,7 +175,6 @@ class RobotEnv(gym.Env):
 
         plt.pause(1)
 
-
 class DQN(nn.Module):
     def __init__(self, input_dim, output_dim):
         super(DQN, self).__init__()
@@ -174,29 +186,6 @@ class DQN(nn.Module):
         x = torch.relu(self.fc1(x))
         x = torch.relu(self.fc2(x))
         return self.fc3(x)
-
-
-def optimize_model(policy_net, target_net, memory, optimizer):
-    if len(memory) < batch_size:
-        return
-
-    transitions = random.sample(memory, batch_size)
-    state_batch, action_batch, reward_batch, next_state_batch, done_batch = zip(*transitions)
-
-    state_batch = torch.tensor([state_to_one_hot(s) for s in state_batch], dtype=torch.float32)
-    action_batch = torch.tensor(action_batch, dtype=torch.int64)
-    reward_batch = torch.tensor(reward_batch, dtype=torch.float32)
-    next_state_batch = torch.tensor([state_to_one_hot(s) for s in next_state_batch], dtype=torch.float32)
-    done_batch = torch.tensor(done_batch, dtype=torch.float32)
-
-    q_values = policy_net(state_batch).gather(1, action_batch.view(-1, 1)).squeeze()
-    next_q_values = target_net(next_state_batch).max(dim=1)[0]
-    expected_q_values = reward_batch + (gamma * next_q_values) * (1 - done_batch)
-
-    loss = nn.functional.smooth_l1_loss(q_values, expected_q_values.detach())
-    optimizer.zero_grad()
-    loss.backward()
-    optimizer.step()
 
 
 def state_to_one_hot(state):
@@ -212,79 +201,40 @@ def state_to_one_hot(state):
 
     return one_hot
 
+def load_model(model_path, input_dim, output_dim):
+    model = DQN(input_dim, output_dim)
+    model.load_state_dict(torch.load(model_path))
+    model.eval()  # Перевод модели в режим оценки
+    return model
 
-batch_size = 5
-gamma = 0.99
-eps_start = 0.3
-eps_end = 0.02
-eps_decay = 10000
-target_update = 10
-
+# Инициализация среды
 env = RobotEnv()
 
-policy_net = DQN(env.observation_space.shape[0], env.action_space.n)
-target_net = DQN(env.observation_space.shape[0], env.action_space.n)
-target_net.load_state_dict(policy_net.state_dict())
-optimizer = optim.RMSprop(policy_net.parameters())
+# Загрузка обученной модели
+model_path = 'DQN_20_000.pth'  # Укажите путь к вашей обученной модели
+policy_net = load_model(model_path, env.observation_space.shape[0], env.action_space.n)
 
-memory = deque(maxlen=250)
-steps_done = 0
-tmp_i = 0
-
-for episode in range(1, 30000):
+# Тестирование модели
+for episode in range(1, 100):  # Вы можете изменить количество эпизодов для тестирования
     state = env.reset()
     total_reward = 0
-
     while True:
         env.render()
-        steps_done += 1
-        eps_threshold = eps_end + (eps_start - eps_end) * np.exp(-steps_done / eps_decay)
-        tmp_i += 1
-        if random.random() < eps_threshold:
-            action = random.randint(0, env.action_space.n - 1)
-        else:
-            with torch.no_grad():
-                one_hot_state = state_to_one_hot(state)
-                state_tensor = torch.tensor([one_hot_state], dtype=torch.float32)
-                action = policy_net(state_tensor).max(dim=1)[1].item()
+
+        # Выбор действия исключительно на основе модели без исследовательской стратегии
+        with torch.no_grad():
+            one_hot_state = state_to_one_hot(state)
+            state_tensor = torch.tensor([one_hot_state], dtype=torch.float32)
+            action = policy_net(state_tensor).max(dim=1)[1].item()
 
         next_state, reward, done, _ = env.step(action)
         total_reward += reward
-        memory.append((state, action, reward, next_state, done))
 
-        optimize_model(policy_net, target_net, memory, optimizer)
-        state = next_state
-        print("эпизод: ", episode)
-        print("суммарная награда в текущем эпизоде: ", total_reward)
-        print("состояние: ", state)
-        if tmp_i == 1000:
-            torch.save(policy_net.state_dict(), "DQN_1000.pth")
-
-        if tmp_i == 2000:
-            torch.save(policy_net.state_dict(), "DQN_2000.pth")
-
-        if tmp_i == 3000:
-            torch.save(policy_net.state_dict(), "DQN_3000.pth")
-
-        if tmp_i == 6000:
-            torch.save(policy_net.state_dict(), "DQN_6000.pth")
-
-        if tmp_i == 10000:
-            torch.save(policy_net.state_dict(), "DQN_10_000.pth")
-
-        if tmp_i == 14000:
-            torch.save(policy_net.state_dict(), "DQN_14_000.pth")
-
-        if tmp_i == 20000:
-            torch.save(policy_net.state_dict(), "DQN_20_000.pth")
         if done:
             break
 
+        state = next_state
+
     print(f"Episode {episode}: Total Reward = {total_reward}")
-
-    if episode % target_update == 0:
-        target_net.load_state_dict(policy_net.state_dict())
-
-torch.save(policy_net.state_dict(), "DQN.pth")
 
 env.close()

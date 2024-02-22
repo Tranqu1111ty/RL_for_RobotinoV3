@@ -102,7 +102,6 @@ def NeurophysicalModel(velocity_1, velocity_2, velocity_3, type_surface, time, c
 
     real_velocity = motors_speed - slippage
     real_velocity = real_velocity * math.pi / 30
-
     "Radius of omni-wheel"
 
     r = 0.04
@@ -130,4 +129,7 @@ def NeurophysicalModel(velocity_1, velocity_2, velocity_3, type_surface, time, c
                                    -vxvywz[0] * time * math.cos(angle + current_angle)
                                    + vxvywz[1] * time * math.sin(angle + current_angle)])
 
-    return global_coord_delta[0], global_coord_delta[1], angle, speed_motor_1[0], speed_motor_2[0], speed_motor_3[0], current_first_motor_on_grey[0], current_second_motor_on_grey[0], current_third_motor_on_grey[0], slippage_first_grey[0], slippage_second_grey[0], slippage_third_grey[0]
+    return global_coord_delta[0], global_coord_delta[1], angle, speed_motor_1[0], speed_motor_2[0], speed_motor_3[0], current_first_motor_on_grey[0], current_second_motor_on_grey[0], current_third_motor_on_grey[0], slippage_first_grey[0], slippage_second_grey[0], slippage_third_grey[0], real_velocity[0][0], real_velocity[0][1], real_velocity[0][2]
+
+
+print(NeurophysicalModel(-31.13074754860792, 0, 17.32050808, 2, 0.5, 0))
